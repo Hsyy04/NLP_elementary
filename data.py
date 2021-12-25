@@ -2,6 +2,7 @@ import pandas as pd
 from torch._C import set_num_interop_threads
 # from torch._C import float32
 import numpy as np
+import torch.nn.functional as F
 from torch.utils import data
 import os
 import torch
@@ -77,14 +78,17 @@ class embedding:
                 wd_dict[wd] = wd_dict[wd]+1
             else:
                 wd_dict["other类"]+=1
-
-        return torch.tensor(list(wd_dict.values()),dtype=float)
+        
+        ret = torch.tensor(list(wd_dict.values()),dtype=float)
+        ret = F.softmax(ret,dim=-1)
+        # assert(False)
+        return ret
         
 
 if __name__ == "__main__":
     train_data = ChSentiDataSet("data\ChnSentiCorp_htl_all\\train_1600+1600.csv")
-    train_dataloader = DataLoader(train_data, batch_size=64, shuffle=True)
-    train_features, train_labels = next(iter(train_dataloader))
-    embd = embedding("data\ChnSentiCorp_htl_all\\train_1600+1600.csv")
-    print(len(embd))
-    print(embd.toTensor("黑店,黑店,绝对黑店.黑店,黑店,绝对黑店.黑店,黑店,绝对黑店."))
+    # train_dataloader = DataLoader(train_data, batch_size=64, shuffle=True)
+    # train_features, train_labels = next(iter(train_dataloader))
+    # embd = embedding("data\ChnSentiCorp_htl_all\\train_1600+1600.csv")
+    # print(len(embd))
+    # print(embd.toTensor("黑店,黑店,绝对黑店.黑店,黑店,绝对黑店.黑店,黑店,绝对黑店."))
