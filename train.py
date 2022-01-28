@@ -3,7 +3,7 @@ from data import embedding, ChSentiDataSet, oneHotEmbedding
 from MLP.MLP import MLPmodelV1, MLPmodelV2
 from TextCNN.textCNN import textCNNv1
 from RNN.rnn import LSTMv1, GRUv1
-from transformer.transformer import transformerv1
+from transformer.transformer import transformerv1,transformerv2
 from torch.utils.data import DataLoader,random_split
 import torch
 from tqdm import tqdm
@@ -75,8 +75,11 @@ if __name__ == "__main__":
     # model = MLPmodelV2()
     # model = textCNNv1((PADDING_LEN, len(eb)))
     # model = LSTMv1(len(eb), 32, PADDING_LEN, dropout=0.6)
-    model = GRUv1(len(eb), 32, PADDING_LEN, dropout=0.6)
-    model = transformerv1(PADDING_LEN, len(eb))
+    # model = GRUv1(len(eb), 32, PADDING_LEN, dropout=0.6)
+    # model = transformerv1(PADDING_LEN, len(eb))
+    model = transformerv2(PADDING_LEN, len(eb))
+
+    # model.to(device)
 
     # 优化器
     # optimizer = myOptimSimple(model.parameters(), lr=LEARNING_RATE)
@@ -88,8 +91,8 @@ if __name__ == "__main__":
         model.train()
         totloss = 0.0
         print(f"Epoch: {epoch+1}/{EPOCH_NUM}")
-        # for (X, y_std) in tqdm(train_dataloader):
-        for (X, y_std) in train_dataloader:
+        for (X, y_std) in tqdm(train_dataloader):
+        # for (X, y_std) in train_dataloader:
             y_pred = model(X)
             loss = F.nll_loss(y_pred, y_std)
             totloss+=loss
