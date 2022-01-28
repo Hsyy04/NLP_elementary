@@ -7,14 +7,17 @@ from torch.utils import data
 import os
 import torch
 from torch.utils.data import DataLoader,Dataset
+import matplotlib.pyplot as plt
 import jieba
+
+from numpy.lib.function_base import place
 
 
 class ChSentiDataSet(Dataset):
     def __init__(self, data_path, embedding) -> None:
         # 由于数据比较少, 我们直接一次加载进来就好.
         # label, review
-        self.data_all = pd.read_csv(data_path)
+        self.data_all = pd.read_csv(data_path, keep_default_na=False, header=0)
         self.embedding = embedding
         super().__init__()
         pass
@@ -28,7 +31,6 @@ class ChSentiDataSet(Dataset):
         review = self.data_all.iloc[index,1]
         review = self.embedding.toTensor(review)
         label =int(self.data_all.iloc[index,0])
-        # label = torch.zeros(2, dtype=torch.float).scatter_(dim=0, index=torch.tensor(label), value=1)
         return review, label
 
 class embedding:
@@ -83,12 +85,96 @@ class embedding:
         ret = F.softmax(ret,dim=-1)
         # assert(False)
         return ret
-        
+
+class oneHotEmbedding:
+    def __init__(self, all_sentence_path, length) -> None:
+        # 构建词典, length是padding长度
+        # 读取所有句子
+        all_sentence = pd.read_csv(all_sentence_path,header=0,names=['label','sentence'],keep_default_na=False)
+        # 计算词频
+        # FIXME: 性能有待提升
+        self.word_dict = {}
+        for sentence in all_sentence['sentence']:
+            words = jieba.lcut(sentence)
+            for wd in words:
+                self.word_dict[wd]= self.word_dict[wd]+1 if self.word_dict.__contains__(wd) else 1
+        self.words = list(self.word_dict.keys())
+        # 去掉低频词
+        for wd in self.word_dict:
+            if self.word_dict[wd]<=100:
+                self.words.remove(wd)        # 得到所有单词
+        # 添加other
+        self.words.append("@other")
+        self.words.append("@pad")
+        # 得到词典
+        self.wordsindex = dict((_,i) for i,_ in enumerate(self.words))
+
+        self.length = length
+
+    def __len__(self):
+        return len(self.words)
+
+    def toTensor(self, sentence):
+        sent_words = jieba.lcut(sentence)
+        sent_index = []
+        # 把词语转换维字典对应的序号
+        for word in sent_words:
+            if self.wordsindex.__contains__(word):
+                sent_index.append(self.wordsindex[word]) # 已存在的
+            else:
+                sent_index.append(self.wordsindex['@other']) # unk
+        while len(sent_index) < self.length:  # padding
+            sent_index.append(self.wordsindex['@pad'])
+
+        # 将id转换为独热码
+        id = torch.tensor(sent_index[:self.length]).reshape(self.length,1) 
+        sent_tensor = torch.zeros((self.length,len(self.words)), dtype=torch.float).scatter_(dim=1, index=id, value=1)
+
+        return sent_tensor.unsqueeze(0) # 为了后面卷积方便调用接口, 因此加一层channel维
+
+class corpusInfo:
+    def __init__(self, path) -> None:
+        self.data = pd.read_csv(path, keep_default_na=False, header=0, names=['label','sentence'])
+
+    def maxWords(self):
+        max_cnt = 0
+        max_sent =''
+        for sent in self.data['sentence']:
+            word_sent = jieba.lcut(sent)
+            if max_cnt < len(word_sent):
+                max_cnt = len(word_sent)
+                max_sent = sent
+        return (max_sent, max_cnt)
+    
+    def minWords(self):
+        min_cnt = 1000000
+        min_sent =''
+        for sent in self.data['sentence']:
+            word_sent = jieba.lcut(sent)
+            if min_cnt > len(word_sent) and len(word_sent) != 0:
+                min_cnt = len(word_sent)
+                min_sent = sent
+        return (min_sent, min_cnt)
+
+    def meanWords(self):
+        mean_cnt = 0.0
+        for sent in self.data['sentence']:
+            word_sent = jieba.lcut(sent)
+            mean_cnt += len(word_sent)
+        return mean_cnt/3200.0
+
+    def histWords(self):
+        cnt = []
+        for sent in self.data['sentence']:
+            cnt.append(len(jieba.lcut(sent)))
+        cnt.sort()
+        plt.hist(cnt,bins=300)
+        plt.show()
+        print(cnt[round(len(cnt)*0.9)])
 
 if __name__ == "__main__":
-    train_data = ChSentiDataSet("data\ChnSentiCorp_htl_all\\train_1600+1600.csv")
-    # train_dataloader = DataLoader(train_data, batch_size=64, shuffle=True)
-    # train_features, train_labels = next(iter(train_dataloader))
-    # embd = embedding("data\ChnSentiCorp_htl_all\\train_1600+1600.csv")
-    # print(len(embd))
-    # print(embd.toTensor("黑店,黑店,绝对黑店.黑店,黑店,绝对黑店.黑店,黑店,绝对黑店."))
+    # info = corpusInfo("data\ChnSentiCorP_htl_all\ChnSentiCorp_htl_all.csv")
+    # info.histWords()
+    embedding = oneHotEmbedding("data\ChnSentiCorP_htl_all\ChnSentiCorp_htl_all.csv", 128)
+    print(len(embedding))
+    # train_data = ChSentiDataSet("data\ChnSentiCorp_htl_all\\train_1600+1600.csv", embedding)
