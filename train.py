@@ -34,6 +34,7 @@ def valid(data, model, phrase):
     loss = 0.0
     for (X,y) in data:
         all+=1
+        X = X.to(device)
         y_pred = model(X.unsqueeze(0))
         y_pred = y_pred.squeeze(0)
         loss += (-float(y_pred[y]))
@@ -56,8 +57,9 @@ if __name__ == "__main__":
     DROUP_OUT = 0.7
     NAME = f'transformer_bs{BATCH_SIZE}_lr{LEARNING_RATE}_en{EPOCH_NUM}_adam_d{DROUP_OUT}_pl{PADDING_LEN}'
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     print(f'Using {device} device')
+    device = torch.device(device)
     currentTime = datetime.now().strftime('%b%d_%H-%M-%S')
     writer = SummaryWriter(f"runs/{NAME}_{currentTime}/")
 
@@ -79,7 +81,6 @@ if __name__ == "__main__":
     # model = transformerv1(PADDING_LEN, len(eb))
     model = transformerv2(PADDING_LEN, len(eb))
 
-    # model.to(device)
 
     # 优化器
     # optimizer = myOptimSimple(model.parameters(), lr=LEARNING_RATE)
@@ -87,12 +88,14 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
     best = 0
+    model.to(device)
     for epoch in range(EPOCH_NUM):
         model.train()
         totloss = 0.0
         print(f"Epoch: {epoch+1}/{EPOCH_NUM}")
         for (X, y_std) in tqdm(train_dataloader):
         # for (X, y_std) in train_dataloader:
+            X, y_std = X.to(device), y_std.to(device)
             y_pred = model(X)
             loss = F.nll_loss(y_pred, y_std)
             totloss+=loss
