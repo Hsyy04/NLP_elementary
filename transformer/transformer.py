@@ -84,7 +84,8 @@ class transformerv2(nn.Module):
         # embedding
         self.emb = nn.Linear(nfeature,512)
         # encoder
-        self.transformerEcoder = nn.TransformerEncoderLayer(self.dmodel,8)
+        layer =  nn.TransformerEncoderLayer(self.dmodel,8)
+        self.transformerEcoder = nn.TransformerEncoder(layer,6)
         # classify
         self.pool = nn.MaxPool2d(16, stride = 16)
         self.FC = nn.Linear(256, 2) #FIXME:这里的参数针对默认self.dmodel = 512
