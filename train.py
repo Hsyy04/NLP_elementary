@@ -12,6 +12,12 @@ import time
 import torchvision.models as models
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
+from torchstat import stat
+from torchsummary import summary
+import os
+
+os.environ['CUDA_VISIBLE_DEVICES']='0, 1'
+torch.cuda.empty_cache()
 
 class myOptimSimple(Optimizer):
     
@@ -50,12 +56,12 @@ if __name__ == "__main__":
     # const valuables
     TRAIN_PATH = "data\ChnSentiCorp_htl_all\\train_1600+1600.csv"
     TEST_PATH = "data\ChnSentiCorp_htl_all\\test_800+800.csv"
-    BATCH_SIZE = 64
+    BATCH_SIZE = 32
     EPOCH_NUM = 10
-    LEARNING_RATE = 0.01
+    LEARNING_RATE = 0.1
     PADDING_LEN = 128
     DROUP_OUT = 0.7
-    NAME = f'transformer_bs{BATCH_SIZE}_lr{LEARNING_RATE}_en{EPOCH_NUM}_adam_d{DROUP_OUT}_pl{PADDING_LEN}'
+    NAME = f'transformer_lr{LEARNING_RATE}_en{EPOCH_NUM}_adam_d{DROUP_OUT}_pl{PADDING_LEN}'
 
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     print(f'Using {device} device')
@@ -64,7 +70,8 @@ if __name__ == "__main__":
     writer = SummaryWriter(f"runs/{NAME}_{currentTime}/")
 
     # 加载数据
-    eb=oneHotEmbedding("data\ChnSentiCorp_htl_all\ChnSentiCorp_htl_all.csv",PADDING_LEN)
+    eb=oneHotEmbedding("data\ChnSentiCorp_htl_all\ChnSentiCorp_htl_all.csv",PADDING_LEN,100)
+    print(f"dictionary size:{len(eb)}")
     train_data = ChSentiDataSet(TRAIN_PATH,eb)
     test_data = ChSentiDataSet(TEST_PATH,eb)
 
@@ -80,7 +87,9 @@ if __name__ == "__main__":
     # model = GRUv1(len(eb), 32, PADDING_LEN, dropout=0.6)
     # model = transformerv1(PADDING_LEN, len(eb))
     model = transformerv2(PADDING_LEN, len(eb))
-
+    #FIXME: stat(model,(1,128,727))
+    # summary(model.cuda(),input_size=(1,128,727),batch_size=64)
+    # assert(False)
 
     # 优化器
     # optimizer = myOptimSimple(model.parameters(), lr=LEARNING_RATE)

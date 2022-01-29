@@ -87,7 +87,7 @@ class embedding:
         return ret
 
 class oneHotEmbedding:
-    def __init__(self, all_sentence_path, length) -> None:
+    def __init__(self, all_sentence_path, length, minfr=100) -> None:
         # 构建词典, length是padding长度
         # 读取所有句子
         all_sentence = pd.read_csv(all_sentence_path,header=0,names=['label','sentence'],keep_default_na=False)
@@ -101,7 +101,7 @@ class oneHotEmbedding:
         self.words = list(self.word_dict.keys())
         # 去掉低频词
         for wd in self.word_dict:
-            if self.word_dict[wd]<=100:
+            if self.word_dict[wd]<=minfr:
                 self.words.remove(wd)        # 得到所有单词
         # 添加other
         self.words.append("@other")
