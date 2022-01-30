@@ -58,8 +58,8 @@ if __name__ == "__main__":
     TRAIN_PATH = "data\ChnSentiCorp_htl_all\\train_1600+1600.csv"
     TEST_PATH = "data\ChnSentiCorp_htl_all\\test_800+800.csv"
     BATCH_SIZE = 32
-    EPOCH_NUM = 100
-    LEARNING_RATE = 0.0001
+    EPOCH_NUM = 40
+    LEARNING_RATE = 0.001
     PADDING_LEN = 128
     DROUP_OUT = 0.7
     NAME = f'transformer_lr{LEARNING_RATE}_en{EPOCH_NUM}_adam_d{DROUP_OUT}_pl{PADDING_LEN}'
