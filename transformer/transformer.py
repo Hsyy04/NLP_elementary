@@ -14,10 +14,10 @@ class MultiHeadAttention(nn.Module):
         self.WK = []
         self.WV = []
         for i in range(nhead):
-            self.WQ.append(torch.nn.Parameter(torch.rand((dmodel,dk),requires_grad=True)))
-            self.WK.append(torch.nn.Parameter(torch.rand((dmodel,dk),requires_grad=True)))
-            self.WV.append(torch.nn.Parameter(torch.rand((dmodel,dv),requires_grad=True)))
-        self.WO = torch.nn.Parameter(torch.rand((nhead*dv, dmodel),requires_grad=True))
+            self.WQ.append(torch.nn.Parameter(torch.rand((dmodel,dk),requires_grad=True, device=torch.device('cuda:0'))))
+            self.WK.append(torch.nn.Parameter(torch.rand((dmodel,dk),requires_grad=True, device=torch.device('cuda:0'))))
+            self.WV.append(torch.nn.Parameter(torch.rand((dmodel,dv),requires_grad=True, device=torch.device('cuda:0'))))
+        self.WO = torch.nn.Parameter(torch.rand((nhead*dv, dmodel),requires_grad=True, device=torch.device('cuda:0')))
     
     def forward(self, Q:Tensor, K:Tensor, V:Tensor):
         #  这个输出是 seq_len* dmodel
@@ -54,16 +54,16 @@ class transformerv1(nn.Module):
         # embedding
         self.emb = nn.Linear(nfeature,self.dmodel)
         # 生成pe
-        self.pe = self.posEncoder(seq_len,self.dmodel)
+        self.pe = posEncoder(seq_len,self.dmodel)
         # encoder
-        self.multiHeadAttention = MultiHeadAttention(dmodel = self.dmodel)
+        self.multiHeadAttention = MultiHeadAttention(dmodel = self.dmodel, nhead=2)
         self.dropout = nn.Dropout(p=0.1)
         self.norm = nn.LayerNorm((seq_len,self.dmodel))
-        self.l1 = nn.Linear(self.dmodel, self.dmodel*4)
-        self.l2 = nn.Linear(self.dmodel*4, self.dmodel)
-        # 分类
-        self.pool = nn.MaxPool2d(16, stride = 16)
-        self.FC = nn.Linear(256, 2) #FIXME:这里的参数针对默认self.dmodel = 512
+        self.l1 = nn.Linear(self.dmodel, self.dmodel)
+        self.l2 = nn.Linear(self.dmodel, self.dmodel)
+        # classify
+        self.pool = nn.MaxPool1d(16, stride = 16)
+        self.FC = nn.Linear(self.seq_len*int(self.dmodel/16),2)
 
     def forward(self, input):
         input = self.emb(input)
@@ -72,10 +72,10 @@ class transformerv1(nn.Module):
         x = self.multiHeadAttention(input, input, input)
         x = self.dropout(x)+input
         x = self.norm(x)
-        x = F.relu(self.l1(x))
+        x = F.relu(self.l1(input))
         x = self.l2(x)
         x = self.pool(x)
-        x = x.reshape(-1,256)#  FIXME: 这里默认维度才对哦self.dmodel = 512
+        x = x.reshape(-1,self.seq_len*int(self.dmodel/16))
         x = self.FC(x)
         x = F.log_softmax(x,dim=-1)
         return x
@@ -98,11 +98,18 @@ class transformerv2(nn.Module):
         # pos
         self.pe = posEncoder(seq_len,nmodel=self.dmodel)
         # encoder
-        layer =  nn.TransformerEncoderLayer(self.dmodel,8,batch_first=True)
-        self.transformerEcoder = nn.TransformerEncoder(layer,6)
+        layer =  nn.TransformerEncoderLayer(self.dmodel,nhead=4,batch_first=True)
+        self.transformerEcoder = nn.TransformerEncoder(layer,1)
         # classify
         self.pool = nn.MaxPool1d(16, stride = 16)
-        self.FC = nn.Linear(256*16, 2) #FIXME:这里的参数针对默认self.dmodel = 512
+        self.FC = nn.Linear(self.seq_len*int(self.dmodel/16),2)
+    
+        self.init_weights()
+
+    def init_weights(self):
+        initrange = 0.1
+        self.FC.weight.data.uniform_(-initrange, initrange)
+        self.FC.bias.data.zero_()
 
     def forward(self,input):
         input = self.emb(input)
@@ -110,7 +117,7 @@ class transformerv2(nn.Module):
         input = self.pe(input)
         x = self.transformerEcoder(input)
         x = self.pool(x)
-        x = x.reshape(-1,256*16)#  FIXME: 这里默认维度才对哦self.dmodel = 512
+        x = x.reshape(-1,self.seq_len*int(self.dmodel/16))
         x = self.FC(x)
         x = F.log_softmax(x,dim=-1)
         return x

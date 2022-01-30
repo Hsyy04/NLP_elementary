@@ -1,4 +1,5 @@
 from torch.optim.optimizer import Optimizer
+from torch.optim.lr_scheduler import StepLR
 from data import embedding, ChSentiDataSet, oneHotEmbedding
 from MLP.MLP import MLPmodelV1, MLPmodelV2
 from TextCNN.textCNN import textCNNv1
@@ -57,8 +58,8 @@ if __name__ == "__main__":
     TRAIN_PATH = "data\ChnSentiCorp_htl_all\\train_1600+1600.csv"
     TEST_PATH = "data\ChnSentiCorp_htl_all\\test_800+800.csv"
     BATCH_SIZE = 32
-    EPOCH_NUM = 10
-    LEARNING_RATE = 0.1
+    EPOCH_NUM = 100
+    LEARNING_RATE = 0.0001
     PADDING_LEN = 128
     DROUP_OUT = 0.7
     NAME = f'transformer_lr{LEARNING_RATE}_en{EPOCH_NUM}_adam_d{DROUP_OUT}_pl{PADDING_LEN}'
@@ -67,7 +68,6 @@ if __name__ == "__main__":
     print(f'Using {device} device')
     device = torch.device(device)
     currentTime = datetime.now().strftime('%b%d_%H-%M-%S')
-    writer = SummaryWriter(f"runs/{NAME}_{currentTime}/")
 
     # 加载数据
     eb=oneHotEmbedding("data\ChnSentiCorp_htl_all\ChnSentiCorp_htl_all.csv",PADDING_LEN,100)
@@ -85,17 +85,19 @@ if __name__ == "__main__":
     # model = textCNNv1((PADDING_LEN, len(eb)))
     # model = LSTMv1(len(eb), 32, PADDING_LEN, dropout=0.6)
     # model = GRUv1(len(eb), 32, PADDING_LEN, dropout=0.6)
-    # model = transformerv1(PADDING_LEN, len(eb))
-    model = transformerv2(PADDING_LEN, len(eb))
-    #FIXME: stat(model,(1,128,727))
-    # summary(model.cuda(),input_size=(1,128,727),batch_size=64)
+    model = transformerv1(PADDING_LEN, len(eb))
+    # model = transformerv2(PADDING_LEN, len(eb))
+    #FIXME: stat(model,(1,128,727))报错了看不懂
+    summary(model.cuda(),input_size=(1,128,727),batch_size=64)
     # assert(False)
 
     # 优化器
     # optimizer = myOptimSimple(model.parameters(), lr=LEARNING_RATE)
     # optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATE)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    scheduler = StepLR(optimizer, step_size=EPOCH_NUM, gamma=0.5)
 
+    writer = SummaryWriter(f"runs/{NAME}_{currentTime}/")
     best = 0
     model.to(device)
     for epoch in range(EPOCH_NUM):
@@ -113,18 +115,30 @@ if __name__ == "__main__":
             optimizer.step()
 
         print(f"loss:{totloss}")
+        writer.add_scalars('train/loss', {'loss':totloss}, epoch)
+        if totloss < 50.0:
+            val_acc,val_loss = valid(train_data, model,"vaild")
+            test_acc,test_loss = valid(test_data, model,"test")
+            dic = {'val':val_loss,'test':test_loss}
+            writer.add_scalars('result/loss', dic, epoch)
+            dic = {'val':val_acc,'test':test_acc}
+            writer.add_scalars('result/acc', dic, epoch)
+
+            if best < test_acc:
+                best = test_acc
+                torch.save(model, f"model/{NAME}.pth") 
+                print("saving...")
+        print('\n')
+
+        scheduler.step()
+
+    if best < 0.5:
         val_acc,val_loss = valid(train_data, model,"vaild")
         test_acc,test_loss = valid(test_data, model,"test")
-        dic = {'val':val_loss,'test':test_loss}
-        writer.add_scalars('result/loss', dic, epoch)
-        dic = {'val':val_acc,'test':test_acc}
-        writer.add_scalars('result/acc', dic, epoch)
-        
-        if best < test_acc:
-            best = test_acc
-            torch.save(model, f"model/{NAME}.pth") 
-            print("saving...")
-        print('\n')
+    else:
+        model = torch.load(f"model/{NAME}.pth")
+        val_acc,val_loss = valid(train_data, model,"vaild")
+        test_acc,test_loss = valid(test_data, model,"test")
 
     end = time.time()
     print(f"time:{end-start}\n")
