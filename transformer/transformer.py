@@ -113,14 +113,14 @@ class transformerv1(nn.Module):
         return Tensor([pe*nbatch])
 
 class transformerv2(nn.Module):
-    def __init__(self, seq_len=128, nfeature=512):
+    def __init__(self, dic_size, seq_len=128, nfeature=512):
         super().__init__()
         self.seq_len = seq_len
         self.dmodel = 512
-        # embedding
-        self.emb = nn.Linear(nfeature,512)
+        # embedding使用torch的！！！！！！！
+        self.emb = nn.Embedding(dic_size, self.dmodel)
         # pos
-        self.pe = posEncoder(seq_len,nmodel=self.dmodel)
+        self.pe = posEncoder(seq_len, nmodel=self.dmodel)
         # encoder
         layer =  nn.TransformerEncoderLayer(self.dmodel,nhead=4,batch_first=True)
         self.transformerEcoder = nn.TransformerEncoder(layer,1)
@@ -137,7 +137,7 @@ class transformerv2(nn.Module):
 
     def forward(self,input):
         input = self.emb(input)
-        input = input.view(-1, self.seq_len, self.dmodel)
+        input = input.reshape(-1, self.seq_len, self.dmodel)
         input = self.pe(input)
         x = self.transformerEcoder(input)
         x = self.pool(x)

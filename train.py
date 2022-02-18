@@ -1,6 +1,6 @@
 from torch.optim.optimizer import Optimizer
 from torch.optim.lr_scheduler import StepLR
-from data import embedding, ChSentiDataSet, oneHotEmbedding
+from data import embedding, ChSentiDataSet, oneHotEmbedding,indexDictEmbedding
 from MLP.MLP import MLPmodelV1, MLPmodelV2
 from TextCNN.textCNN import textCNNv1
 from RNN.rnn import LSTMv1, GRUv1
@@ -70,7 +70,9 @@ if __name__ == "__main__":
     currentTime = datetime.now().strftime('%b%d_%H-%M-%S')
 
     # 加载数据
-    eb=oneHotEmbedding("data\ChnSentiCorp_htl_all\ChnSentiCorp_htl_all.csv",PADDING_LEN,100)
+    # eb=oneHotEmbedding("data\ChnSentiCorp_htl_all\ChnSentiCorp_htl_all.csv",PADDING_LEN,100)
+    eb=indexDictEmbedding("data\ChnSentiCorp_htl_all\ChnSentiCorp_htl_all.csv",PADDING_LEN,100)
+    dicSize = len(eb)
     print(f"dictionary size:{len(eb)}")
     train_data = ChSentiDataSet(TRAIN_PATH,eb)
     test_data = ChSentiDataSet(TEST_PATH,eb)
@@ -85,8 +87,8 @@ if __name__ == "__main__":
     # model = textCNNv1((PADDING_LEN, len(eb)))
     # model = LSTMv1(len(eb), 32, PADDING_LEN, dropout=0.6)
     # model = GRUv1(len(eb), 32, PADDING_LEN, dropout=0.6)
-    model = transformerv1(PADDING_LEN, len(eb))
-    # model = transformerv2(PADDING_LEN, len(eb))
+    # model = transformerv1(PADDING_LEN, len(eb))
+    model = transformerv2(dicSize,PADDING_LEN)
     #FIXME: stat(model,(1,128,727))报错了看不懂
     summary(model.cuda(),input_size=(1,128,727),batch_size=64)
     # assert(False)
