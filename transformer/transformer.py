@@ -1,8 +1,8 @@
 from turtle import forward, position
 from typing import ForwardRef, Pattern
-from torch import Tensor, nn, softmax
+from torch import Tensor, nn
 import torch.nn.functional as F
-from torch.nn import Transformer
+from torch.nn import Transformer, MultiheadAttention
 import torch
 import math
 
@@ -28,8 +28,10 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, nhead=8, dmodel=512, dk=64, dv=64):
+    def __init__(self, nhead=8, dmodel=512, p=0.1):
         super().__init__()
+        dk = dmodel//nhead
+        dv = dmodel//nhead
         self.nhead = nhead
         self.WQ = []
         self.WK = []
@@ -39,7 +41,9 @@ class MultiHeadAttention(nn.Module):
             self.WK.append(torch.nn.Parameter(torch.rand((dmodel,dk),requires_grad=True, device=torch.device('cuda:0'))))
             self.WV.append(torch.nn.Parameter(torch.rand((dmodel,dv),requires_grad=True, device=torch.device('cuda:0'))))
         self.WO = torch.nn.Parameter(torch.rand((nhead*dv, dmodel),requires_grad=True, device=torch.device('cuda:0')))
-    
+        self.p = p
+        self.dropout = nn.Dropout(p)
+
     def forward(self, Q:Tensor, K:Tensor, V:Tensor):
         #  这个输出是 seq_len* dmodel
         ohead = []
@@ -48,7 +52,9 @@ class MultiHeadAttention(nn.Module):
             Ki = K @ self.WK[i]
             Vi = V @ self.WV[i]
             dk = Ki.size()[-1]
-            headi = F.softmax(Qi @ Ki.transpose(1,2) / math.sqrt(dk)) @ Vi # FIXME:这里有警告
+            headi = F.softmax(torch.bmm(Qi , Ki.transpose(1,2)) / math.sqrt(dk),dim=-1)
+            headi = F.dropout(headi,self.p)
+            headi = torch.bmm(headi , Vi)
             ohead.append(headi)
         output = torch.cat(ohead, -1)
         output = output @ self.WO
@@ -70,7 +76,7 @@ class posEncoder(nn.Module):
         return self.dropout(x+self.pe)
 
 class transformerv1(nn.Module):
-    def __init__(self, seq_len=128, nfeature=512):
+    def __init__(self, seq_len=128, nfeature=512, p=0.1):
         super().__init__()
         self.seq_len = seq_len
         self.dmodel = 512
@@ -78,39 +84,45 @@ class transformerv1(nn.Module):
         self.emb = nn.Linear(nfeature,self.dmodel)
         # 生成pe
         self.pe = posEncoder(seq_len,self.dmodel)
-        # self.pe = PositionalEncoding(self.dmodel)
         # encoder
-        self.multiHeadAttention = MultiHeadAttention(dmodel = self.dmodel, nhead=2)
-        self.dropout = nn.Dropout(p=0.1)
-        self.norm = nn.LayerNorm((seq_len,self.dmodel))
-        self.l1 = nn.Linear(self.dmodel, self.dmodel)
-        self.l2 = nn.Linear(self.dmodel, self.dmodel)
+        self.multiHeadAttention = MultiHeadAttention(dmodel = self.dmodel, nhead=4)
+        # self.multiHeadAttention = MultiheadAttention(self.dmodel, 4, dropout=p, batch_first=True)
+        self.dropout1 = nn.Dropout(p)
+        self.norm1 = nn.LayerNorm(self.dmodel)
+
+        self.l1 = nn.Linear(self.dmodel, self.dmodel*4)
+        self.dropout = nn.Dropout(p)
+        self.l2 = nn.Linear(self.dmodel*4, self.dmodel)
+        self.dropout2 = nn.Dropout(p)
+        self.norm2 = nn.LayerNorm(self.dmodel)
         # classify
         self.pool = nn.MaxPool1d(16, stride = 16)
         self.FC = nn.Linear(self.seq_len*int(self.dmodel/16),2)
+
+        self.init_weights()
+    
+    def init_weights(self):
+        initrange = 0.1
+        self.FC.weight.data.uniform_(-initrange, initrange)
+        self.FC.bias.data.zero_()
 
     def forward(self, input):
         input = self.emb(input)
         input = input.view(-1, self.seq_len, self.dmodel)
         input = self.pe(input)
         x = self.multiHeadAttention(input, input, input)
-        x = self.dropout(x)+input
-        x = self.norm(x)
-        x = F.relu(self.l1(input))
-        x = self.l2(x)
+        x = self.dropout1(x)+input
+        x = self.norm1(x)
+
+        x2 = self.l2(self.dropout(F.relu(self.l1(x))))
+        x = self.dropout2(x2)+x
+        x = self.norm2(x)
+
         x = self.pool(x)
         x = x.reshape(-1,self.seq_len*int(self.dmodel/16))
         x = self.FC(x)
         x = F.log_softmax(x,dim=-1)
         return x
-
-    def posEncoder(self, nbatch:int, npos:int, nmodel:int):
-        pe = torch.zeros(npos,nmodel)
-        position = torch.range(0,npos).float()
-        div_term = torch.exp(torch.range(0,npos,2).float()*(-math.log(10000.0)/nmodel))
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        return Tensor([pe*nbatch])
 
 class transformerv2(nn.Module):
     def __init__(self, dic_size, seq_len=128, nfeature=512):

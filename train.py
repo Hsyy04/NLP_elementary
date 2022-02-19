@@ -59,7 +59,7 @@ if __name__ == "__main__":
     TEST_PATH = "data\ChnSentiCorp_htl_all\\test_800+800.csv"
     BATCH_SIZE = 32
     EPOCH_NUM = 40
-    LEARNING_RATE = 0.001
+    LEARNING_RATE = 0.0001
     PADDING_LEN = 128
     DROUP_OUT = 0.7
     NAME = f'transformer_lr{LEARNING_RATE}_en{EPOCH_NUM}_adam_d{DROUP_OUT}_pl{PADDING_LEN}'
@@ -70,8 +70,8 @@ if __name__ == "__main__":
     currentTime = datetime.now().strftime('%b%d_%H-%M-%S')
 
     # 加载数据
-    # eb=oneHotEmbedding("data\ChnSentiCorp_htl_all\ChnSentiCorp_htl_all.csv",PADDING_LEN,100)
-    eb=indexDictEmbedding("data\ChnSentiCorp_htl_all\ChnSentiCorp_htl_all.csv",PADDING_LEN,100)
+    eb=oneHotEmbedding("data\ChnSentiCorp_htl_all\ChnSentiCorp_htl_all.csv",PADDING_LEN,100)
+    # eb=indexDictEmbedding("data\ChnSentiCorp_htl_all\ChnSentiCorp_htl_all.csv",PADDING_LEN,100)
     dicSize = len(eb)
     print(f"dictionary size:{len(eb)}")
     train_data = ChSentiDataSet(TRAIN_PATH,eb)
@@ -87,8 +87,8 @@ if __name__ == "__main__":
     # model = textCNNv1((PADDING_LEN, len(eb)))
     # model = LSTMv1(len(eb), 32, PADDING_LEN, dropout=0.6)
     # model = GRUv1(len(eb), 32, PADDING_LEN, dropout=0.6)
-    # model = transformerv1(PADDING_LEN, len(eb))
-    model = transformerv2(dicSize,PADDING_LEN)
+    model = transformerv1(PADDING_LEN, len(eb))
+    # model = transformerv2(dicSize,PADDING_LEN)
     #FIXME: stat(model,(1,128,727))报错了看不懂
     summary(model.cuda(),input_size=(1,128,727),batch_size=64)
     # assert(False)
@@ -97,7 +97,7 @@ if __name__ == "__main__":
     # optimizer = myOptimSimple(model.parameters(), lr=LEARNING_RATE)
     # optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATE)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
-    scheduler = StepLR(optimizer, step_size=EPOCH_NUM, gamma=0.5)
+    scheduler = StepLR(optimizer, step_size=100, gamma=0.5)
 
     writer = SummaryWriter(f"runs/{NAME}_{currentTime}/")
     best = 0
