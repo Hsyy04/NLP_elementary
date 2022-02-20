@@ -35,32 +35,40 @@ class MultiHeadAttention(nn.Module):
         dk = dmodel//nhead
         dv = dmodel//nhead
         self.nhead = nhead
-        self.WQ = []
-        self.WK = []
-        self.WV = []
-        for i in range(nhead):
-            self.WQ.append(torch.nn.Parameter(torch.rand((dmodel,dk),requires_grad=True, device=torch.device('cuda:0'))))
-            self.WK.append(torch.nn.Parameter(torch.rand((dmodel,dk),requires_grad=True, device=torch.device('cuda:0'))))
-            self.WV.append(torch.nn.Parameter(torch.rand((dmodel,dv),requires_grad=True, device=torch.device('cuda:0'))))
+    
+        self.WQ = torch.nn.Parameter(torch.rand((nhead,dmodel,dk),requires_grad=True, device=torch.device('cuda:0')))
+        self.WK = torch.nn.Parameter(torch.rand((nhead,dmodel,dk),requires_grad=True, device=torch.device('cuda:0')))
+        self.WV = torch.nn.Parameter(torch.rand((nhead,dmodel,dv),requires_grad=True, device=torch.device('cuda:0')))
         self.WO = torch.nn.Parameter(torch.rand((nhead*dv, dmodel),requires_grad=True, device=torch.device('cuda:0')))
-        self.p = p
         self.dropout = nn.Dropout(p)
+
+        self.init_weights()
+    
+    def init_weights(self):
+        initrange = 0.1
+        self.WQ.data.uniform_(-initrange, initrange)
+        self.WK.data.uniform_(-initrange, initrange)
+        self.WV.data.uniform_(-initrange, initrange)
+        self.WO.data.uniform_(-initrange, initrange)
 
     def forward(self, Q:Tensor, K:Tensor, V:Tensor):
         #  这个输出是 seq_len* dmodel
-        ohead = []
-        for i in range(self.nhead):
-            Qi:Tensor= Q @ self.WQ[i]
-            Ki:Tensor = K @ self.WK[i]
-            Vi:Tensor = V @ self.WV[i]
-            dk = Ki.size()[-1]
-            headi = F.softmax(torch.bmm(Qi / math.sqrt(dk), Ki.transpose(-2,-1)) ,dim=-1)
-            headi = F.dropout(headi, self.p)
-            headi = torch.bmm(headi , Vi)
-            ohead.append(headi)
-        output = torch.cat(ohead, -1)
+        _Q, _K, _V = Q,K,V
+        seq_len, dmodel = Q.shape[-2],Q.shape[-1] 
+        _Q = torch.unsqueeze(_Q,1)
+        _K = torch.unsqueeze(_K,1)
+        _V = torch.unsqueeze(_V,1)
+        Qi:Tensor= _Q @ self.WQ
+        Ki:Tensor = _K @ self.WK
+        Vi:Tensor = _V @ self.WV
+        dk = Qi.shape[-1]
+
+        headi:Tensor = F.softmax(Qi@Ki.contiguous().transpose(-2,-1) / math.sqrt(float(dk)) ,dim=-1)
+        headi = self.dropout(headi)
+        headi = headi@Vi
+        output = headi.contiguous().reshape(-1, seq_len, dk*self.nhead)
         output = output @ self.WO
-        return output
+        return output, None
 
 class posEncoder(nn.Module):
     def __init__(self, npos:int, nmodel:int,dropout=0.1):
@@ -87,7 +95,7 @@ class transformerv1(nn.Module):
         # 生成pe
         self.pe = posEncoder(seq_len,self.dmodel)
         # encoder
-        self.multiHeadAttention = MultiHeadAttention(dmodel = self.dmodel, nhead=8)
+        self.multiHeadAttention = MultiHeadAttention(dmodel = self.dmodel, nhead=4)
         # self.multiHeadAttention = MultiheadAttention(self.dmodel, 4, dropout=p, batch_first=True)
         self.dropout1 = nn.Dropout(p)
         self.norm1 = nn.LayerNorm(self.dmodel)
@@ -112,7 +120,8 @@ class transformerv1(nn.Module):
         input = self.emb(input)
         input = input.view(-1, self.seq_len, self.dmodel)
         input = self.pe(input)
-        x = self.multiHeadAttention(input, input, input)
+        x = input
+        x, w= self.multiHeadAttention(x, x, x)
         x = self.dropout1(x)+input
         x = self.norm1(x)
 

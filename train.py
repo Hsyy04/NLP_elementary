@@ -97,7 +97,7 @@ if __name__ == "__main__":
     # optimizer = myOptimSimple(model.parameters(), lr=LEARNING_RATE)
     # optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATE)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
-    scheduler = StepLR(optimizer, step_size=100, gamma=0.5)
+    scheduler = StepLR(optimizer, step_size=153, gamma=0.5)
 
     writer = SummaryWriter(f"runs/{NAME}_{currentTime}/")
     best = 0
