@@ -6,6 +6,8 @@ from torch.nn import Transformer, MultiheadAttention
 import torch
 import math
 
+from numpy import double
+
 class PositionalEncoding(nn.Module):
 
     def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 515):
@@ -48,12 +50,12 @@ class MultiHeadAttention(nn.Module):
         #  这个输出是 seq_len* dmodel
         ohead = []
         for i in range(self.nhead):
-            Qi = Q @ self.WQ[i]
-            Ki = K @ self.WK[i]
-            Vi = V @ self.WV[i]
+            Qi:Tensor= Q @ self.WQ[i]
+            Ki:Tensor = K @ self.WK[i]
+            Vi:Tensor = V @ self.WV[i]
             dk = Ki.size()[-1]
-            headi = F.softmax(torch.bmm(Qi , Ki.transpose(1,2)) / math.sqrt(dk),dim=-1)
-            headi = F.dropout(headi,self.p)
+            headi = F.softmax(torch.bmm(Qi / math.sqrt(dk), Ki.transpose(-2,-1)) ,dim=-1)
+            headi = F.dropout(headi, self.p)
             headi = torch.bmm(headi , Vi)
             ohead.append(headi)
         output = torch.cat(ohead, -1)
@@ -70,7 +72,7 @@ class posEncoder(nn.Module):
         div_term = torch.exp(torch.arange(0, nmodel, 2).float()*(-math.log(10000.0)/float(nmodel)))
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        self.register_buffer('pe', pe) # 这种方式也可以把参数放到gpu？
+        self.register_buffer('pe', pe) 
 
     def forward(self, x):
         return self.dropout(x+self.pe)
@@ -85,7 +87,7 @@ class transformerv1(nn.Module):
         # 生成pe
         self.pe = posEncoder(seq_len,self.dmodel)
         # encoder
-        self.multiHeadAttention = MultiHeadAttention(dmodel = self.dmodel, nhead=4)
+        self.multiHeadAttention = MultiHeadAttention(dmodel = self.dmodel, nhead=8)
         # self.multiHeadAttention = MultiheadAttention(self.dmodel, 4, dropout=p, batch_first=True)
         self.dropout1 = nn.Dropout(p)
         self.norm1 = nn.LayerNorm(self.dmodel)
