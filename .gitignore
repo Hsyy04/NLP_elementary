@@ -1,3 +1,10 @@
 data/*
 runs/*
-model/*
+
+bert/chinese_bert/*
+__pycache__/*
+bert\__pycache__/*
+MLP\__pycache__/*
+RNN\__pycache__/*
+TextCNN\__pycache__/*
+transformer\__pycache__/*

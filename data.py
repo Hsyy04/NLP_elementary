@@ -1,6 +1,6 @@
+from lib2to3.pgen2 import token
+from turtle import pos
 import pandas as pd
-from torch._C import set_num_interop_threads
-# from torch._C import float32
 import numpy as np
 import torch.nn.functional as F
 from torch.utils import data
@@ -9,9 +9,7 @@ import torch
 from torch.utils.data import DataLoader,Dataset
 import matplotlib.pyplot as plt
 import jieba
-
-from numpy.lib.function_base import place
-
+from transformers import BertTokenizer
 
 class ChSentiDataSet(Dataset):
     def __init__(self, data_path, embedding) -> None:
@@ -60,6 +58,8 @@ class embedding:
         # 添加other
         self.words.append("@other")
         self.words.append("@pad")
+        self.words.append("@cls")
+        self.words.append("@sep")
 
     def __len__(self):
         return len(self.words)
@@ -84,7 +84,6 @@ class embedding:
         
         ret = torch.tensor(list(wd_dict.values()),dtype=float)
         ret = F.softmax(ret,dim=-1)
-        # assert(False)
         return ret
 
 class oneHotEmbedding(embedding):
@@ -134,6 +133,47 @@ class indexDictEmbedding(oneHotEmbedding):
 
         return id.unsqueeze(0) # 为了后面卷积方便调用接口, 因此加一层channel维
 
+class bertEmbedding(embedding):
+    def __init__(self, all_sentence_path, length, minfr=100) -> None:
+        super().__init__(all_sentence_path, minfr)
+        self.length = length
+        # 使用的预训练模型：https://github.com/ymcui/Chinese-BERT-wwm
+        self.tokenizer = BertTokenizer.from_pretrained('hfl/chinese-bert-wwm',padding=True, truncation=True, return_tensors="pt")
+    
+    def toTensor(self, sentence):
+        token_words = self.tokenizer.encode_plus(sentence, max_length=self.length, padding='max_length',truncation=True)
+        # return torch.tensor([token_words['input_ids'], token_words['token_type_ids'], token_words['attention_mask']])
+        return torch.tensor(token_words['input_ids'])
+
+class bertEmbeddingv1(embedding):
+    def __init__(self, all_sentence_path, length, minfr=100) -> None:
+        super().__init__(all_sentence_path, minfr)
+        # 得到词典
+        self.wordsindex = dict((_,i) for i,_ in enumerate(self.words))
+        self.length = length
+    
+    def toTensor(self, sentence):
+        sent_words = jieba.lcut(sentence)
+        sent_index = []
+        # 把词语转换维字典对应的序号
+        sent_index.append(self.wordsindex['@cls'])
+        for word in sent_words:
+            if self.wordsindex.__contains__(word):
+                sent_index.append(self.wordsindex[word]) # 已存在的
+            else:
+                sent_index.append(self.wordsindex['@other']) # unk
+        sent_index.append(self.wordsindex['@sep'])
+
+        while len(sent_index) < self.length:  # padding
+            sent_index.append(self.wordsindex['@pad'])
+
+        # 得到句子中每个单词的id
+        input_ids = torch.tensor(sent_index[:self.length])
+        attention_mask = torch.tensor([i!=self.wordsindex['@pad'] for i in sent_index])
+        token_type_ids = torch.tensor([0]*self.length)
+        position_ids = torch.tensor([i for i in range(self.length)])
+        return torch.tensor(input_ids, attention_mask, token_type_ids, position_ids)
+
 class corpusInfo:
     def __init__(self, path) -> None:
         self.data = pd.read_csv(path, keep_default_na=False, header=0, names=['label','sentence'])
@@ -176,7 +216,7 @@ class corpusInfo:
 
 if __name__ == "__main__":
     # info = corpusInfo("data\ChnSentiCorP_htl_all\ChnSentiCorp_htl_all.csv")
-    # info.histWords()
-    embedding = indexDictEmbedding("data\ChnSentiCorP_htl_all\ChnSentiCorp_htl_all.csv", 128)
+    # print(info.maxWords())
+    embedding = bertEmbedding("data\ChnSentiCorP_htl_all\ChnSentiCorp_htl_all.csv", 128)
     train_data = ChSentiDataSet("data\ChnSentiCorp_htl_all\\train_1600+1600.csv", embedding)
-    print(train_data.__getitem__(1)[0].shape)
+    print(train_data.__getitem__(1))

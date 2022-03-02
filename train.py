@@ -1,11 +1,15 @@
+import imp
 from torch.optim.optimizer import Optimizer
 from torch.optim.lr_scheduler import StepLR
-from data import embedding, ChSentiDataSet, oneHotEmbedding,indexDictEmbedding
+
+from data import bertEmbedding, embedding, ChSentiDataSet, oneHotEmbedding,indexDictEmbedding
 from MLP.MLP import MLPmodelV1, MLPmodelV2
 from TextCNN.textCNN import textCNNv1
 from RNN.rnn import LSTMv1, GRUv1
 from transformer.transformer import transformerv1,transformerv2
+from bert.bert import bertClassifier
 from torch.utils.data import DataLoader,random_split
+
 import torch
 from tqdm import tqdm
 import torch.nn.functional as F
@@ -57,12 +61,12 @@ if __name__ == "__main__":
     # const valuables
     TRAIN_PATH = "data\ChnSentiCorp_htl_all\\train_1600+1600.csv"
     TEST_PATH = "data\ChnSentiCorp_htl_all\\test_800+800.csv"
-    BATCH_SIZE = 32
+    BATCH_SIZE = 1
     EPOCH_NUM = 40
-    LEARNING_RATE = 0.0001
-    PADDING_LEN = 128
+    LEARNING_RATE = 0.00003
+    PADDING_LEN = 512   # i.e.seq_len
     DROUP_OUT = 0.7
-    NAME = f'transformer_lr{LEARNING_RATE}_en{EPOCH_NUM}_adam_d{DROUP_OUT}_pl{PADDING_LEN}'
+    NAME = f'bert_lr{LEARNING_RATE}_en{EPOCH_NUM}_adam_d{DROUP_OUT}_pl{PADDING_LEN}'
 
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     print(f'Using {device} device')
@@ -70,8 +74,9 @@ if __name__ == "__main__":
     currentTime = datetime.now().strftime('%b%d_%H-%M-%S')
 
     # 加载数据
-    eb=oneHotEmbedding("data\ChnSentiCorp_htl_all\ChnSentiCorp_htl_all.csv",PADDING_LEN,100)
+    # eb=oneHotEmbedding("data\ChnSentiCorp_htl_all\ChnSentiCorp_htl_all.csv",PADDING_LEN,100)
     # eb=indexDictEmbedding("data\ChnSentiCorp_htl_all\ChnSentiCorp_htl_all.csv",PADDING_LEN,100)
+    eb = bertEmbedding("data\ChnSentiCorp_htl_all\ChnSentiCorp_htl_all.csv",PADDING_LEN)
     dicSize = len(eb)
     print(f"dictionary size:{len(eb)}")
     train_data = ChSentiDataSet(TRAIN_PATH,eb)
@@ -87,8 +92,9 @@ if __name__ == "__main__":
     # model = textCNNv1((PADDING_LEN, len(eb)))
     # model = LSTMv1(len(eb), 32, PADDING_LEN, dropout=0.6)
     # model = GRUv1(len(eb), 32, PADDING_LEN, dropout=0.6)
-    model = transformerv1(PADDING_LEN, len(eb))
+    # model = transformerv1(PADDING_LEN, len(eb))
     # model = transformerv2(dicSize,PADDING_LEN)
+    model = bertClassifier()
     #FIXME: stat(model,(1,128,727))报错了看不懂
     summary(model.cuda(),input_size=(1,128,727),batch_size=64)
     # assert(False)
