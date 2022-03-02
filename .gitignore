@@ -1,6 +1,6 @@
 data/*
 runs/*
-
+model/*
 bert/chinese_bert/*
 __pycache__/*
 bert\__pycache__/*
