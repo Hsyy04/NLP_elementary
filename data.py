@@ -142,8 +142,8 @@ class bertEmbedding(embedding):
     
     def toTensor(self, sentence):
         token_words = self.tokenizer.encode_plus(sentence, max_length=self.length, padding='max_length',truncation=True)
-        # return torch.tensor([token_words['input_ids'], token_words['token_type_ids'], token_words['attention_mask']])
-        return torch.tensor(token_words['input_ids'])
+        return torch.tensor([token_words['input_ids'], token_words['token_type_ids'], token_words['attention_mask']])
+        # return torch.tensor(token_words['input_ids'])
 
 class bertEmbeddingv1(embedding):
     def __init__(self, all_sentence_path, length, minfr=100) -> None:

@@ -17,11 +17,11 @@ import time
 import torchvision.models as models
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
-from torchstat import stat
-from torchsummary import summary
+# from torchstat import stat
+# from torchsummary import summary
 import os
 
-os.environ['CUDA_VISIBLE_DEVICES']='0, 1'
+os.environ['CUDA_VISIBLE_DEVICES']='0'
 torch.cuda.empty_cache()
 
 class myOptimSimple(Optimizer):
@@ -59,9 +59,9 @@ def valid(data, model, phrase):
 
 if __name__ == "__main__":
     # const valuables
-    TRAIN_PATH = "data\ChnSentiCorp_htl_all\\train_1600+1600.csv"
-    TEST_PATH = "data\ChnSentiCorp_htl_all\\test_800+800.csv"
-    BATCH_SIZE = 1
+    TRAIN_PATH = "data/ChnSentiCorp_htl_all/train_1600+1600.csv"
+    TEST_PATH = "data/ChnSentiCorp_htl_all/test_800+800.csv"
+    BATCH_SIZE = 8
     EPOCH_NUM = 40
     LEARNING_RATE = 0.00003
     PADDING_LEN = 512   # i.e.seq_len
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     # 加载数据
     # eb=oneHotEmbedding("data\ChnSentiCorp_htl_all\ChnSentiCorp_htl_all.csv",PADDING_LEN,100)
     # eb=indexDictEmbedding("data\ChnSentiCorp_htl_all\ChnSentiCorp_htl_all.csv",PADDING_LEN,100)
-    eb = bertEmbedding("data\ChnSentiCorp_htl_all\ChnSentiCorp_htl_all.csv",PADDING_LEN)
+    eb = bertEmbedding("data/ChnSentiCorp_htl_all/ChnSentiCorp_htl_all.csv",PADDING_LEN)
     dicSize = len(eb)
     print(f"dictionary size:{len(eb)}")
     train_data = ChSentiDataSet(TRAIN_PATH,eb)
@@ -96,7 +96,7 @@ if __name__ == "__main__":
     # model = transformerv2(dicSize,PADDING_LEN)
     model = bertClassifier()
     #FIXME: stat(model,(1,128,727))报错了看不懂
-    summary(model.cuda(),input_size=(1,128,727),batch_size=64)
+    # summary(model.cuda(),input_size=(1,128,727),batch_size=64)
     # assert(False)
 
     # 优化器
@@ -112,8 +112,8 @@ if __name__ == "__main__":
         model.train()
         totloss = 0.0
         print(f"Epoch: {epoch+1}/{EPOCH_NUM}")
-        for (X, y_std) in tqdm(train_dataloader):
-        # for (X, y_std) in train_dataloader:
+        # for (X, y_std) in tqdm(train_dataloader):
+        for (X, y_std) in train_dataloader:
             X, y_std = X.to(device), y_std.to(device)
             y_pred = model(X)
             loss = F.nll_loss(y_pred, y_std)
@@ -124,7 +124,7 @@ if __name__ == "__main__":
 
         print(f"loss:{totloss}")
         writer.add_scalars('train/loss', {'loss':totloss}, epoch)
-        if totloss < 50.0:
+        if totloss < 70.0:
             val_acc,val_loss = valid(train_data, model,"vaild")
             test_acc,test_loss = valid(test_data, model,"test")
             dic = {'val':val_loss,'test':test_loss}
