@@ -215,8 +215,8 @@ class corpusInfo:
         print(cnt[round(len(cnt)*0.9)])
 
 if __name__ == "__main__":
-    # info = corpusInfo("data\ChnSentiCorP_htl_all\ChnSentiCorp_htl_all.csv")
-    # print(info.maxWords())
-    embedding = bertEmbedding("data\ChnSentiCorP_htl_all\ChnSentiCorp_htl_all.csv", 128)
-    train_data = ChSentiDataSet("data\ChnSentiCorp_htl_all\\train_1600+1600.csv", embedding)
-    print(train_data.__getitem__(1))
+    info = corpusInfo("data/ChnSentiCorp_htl_all/ChnSentiCorp_htl_all.csv")
+    info.histWords()
+    # embedding = bertEmbedding("data\ChnSentiCorP_htl_all\ChnSentiCorp_htl_all.csv", 128)
+    # train_data = ChSentiDataSet("data\ChnSentiCorp_htl_all\\train_1600+1600.csv", embedding)
+    # print(train_data.__getitem__(1))
