@@ -1,3 +1,4 @@
+from venv import create
 from transformers import BertTokenizer
 from torch.utils.data import Dataset
 import pandas as pd
@@ -7,7 +8,7 @@ import random
 import re
 def cut_sent(para):
     # 中文分句小工具
-    para = re.sub('([~;；.。！？\?])([^”’])', r"\1\n\2", para)  # 单字符断句符
+    para = re.sub('([~;；.。,，！？\?])([^”’])', r"\1\n\2", para)  # 单字符断句符
     para = re.sub('(\.{6})([^”’])', r"\1\n\2", para)  # 英文省略号
     para = re.sub('(\…{2})([^”’])', r"\1\n\2", para)  # 中文省略号
     para = re.sub('([。！？\?][”’])([^，。！？\?])', r'\1\n\2', para)
@@ -23,7 +24,7 @@ def cut_sent(para):
 '''
 
 class BertDataset(Dataset):
-    def __init__(self) -> None:
+    def __init__(self, max_len=256) -> None:
         super().__init__()
         self.tokenizer = BertTokenizer('data/bert_min/vocab.txt')
         # 从评论数据中生成document, 删除了短评.
@@ -33,12 +34,54 @@ class BertDataset(Dataset):
                 self.all_document.remove(i)
             elif len(cut_sent(i))<=2:
                 self.all_document.remove(i)
-        
-        data_tokens=[]
+
+        self.data_tokens=[]
         for i in range(len(self.all_document)):
-            if i<=10:
-                print(self.create_instances(i))
-            data_tokens.extend(self.create_instances(i))
+            self.data_tokens.extend(self.create_instances(i,max_len)) # 这里是先构造句子对
+        self.data_inputs=[]
+        for tk in self.data_tokens:
+            self.data_inputs.append(self.create_input(tk,max_len=max_len))
+        self.max_len=max_len
+        
+    def create_input(self, token, mask_prob=0.15, max_len=256):
+        '''
+        对于传入的token, 要生成输入
+        输入包括原id, 掩码之后的id, padding掩码, 被掩码掩去的pos
+        '''
+        for i in range(len(token['tokens']), max_len):        # 添加padding
+            token['tokens'].append('[PAD]')
+            token['segment'].append(1)
+        all_id = self.tokenizer.convert_tokens_to_ids(token['tokens'])  # 转换原token到id
+        mask_pos=[]
+        for pos,id in enumerate(all_id):            # 先找到所有能够mask的位置
+            if (id>=100 and id<=103) or id == 0:
+                continue
+            mask_pos.append(pos)
+        mask_num = max(1,int(len(mask_pos)*mask_prob))
+        random.shuffle(mask_pos)
+        mask_pos = mask_pos[:mask_num]
+        
+        mask_id = []                    # 生成掩码的id
+        for pos,id in enumerate(all_id):
+            if id>=100 and id<=103:
+                mask_id.append(id)
+            else:
+                if pos in mask_pos:
+                    rd = random.random()
+                    if rd<0.8 :
+                        mask_id.append(103)
+                    elif rd<0.9:
+                        mask_id.append(id)
+                    else:
+                        tkid = random.randint(0,self.tokenizer.vocab_size-1)
+                        while tkid == id : tkid = random.randint(0,self.tokenizer.vocab_size-1)
+                        mask_id.append(tkid)
+                else:
+                    mask_id.append(id)
+        mask_padding=[1 if i>0 else 0 for i in all_id]
+        # create
+        ret = {'token_ids':all_id, 'mask_ids':mask_id, 'mask_padding':mask_padding,'mask_pos': mask_pos}
+        return ret
         
     def create_instances(self, index, max_len=256):
         '''
@@ -72,11 +115,11 @@ class BertDataset(Dataset):
                 used_end+=1
 
             # 选择句子B
-            tag=True
+            tag=1
             tokenb=''
             if random.random()<0.5:         # 选择其他文档中的
-                tag=False
-                fake_doc = random.randint(0,len(self.all_document))
+                tag=0
+                fake_doc = random.randint(0,len(self.all_document)-1)
                 while fake_doc == index: fake_doc = random.randint(0,len(self.all_document)-1)
                 fake_doc = cut_sent(self.all_document[fake_doc])
                 start = random.randint(0,len(fake_doc))     # 随机选择一个开始的位置
@@ -86,7 +129,7 @@ class BertDataset(Dataset):
                         break
                     tokenb+=fake_doc[id]    
             else:                           # 选择真实文档中的
-                tag=True
+                tag=1
                 start = used_end
                 for id in range(used_end, len(doc)):   # 在本文档中添加真实的句子
                     if len(tokena)+len(tokenb)+len(doc[id]) > max_len-3:
@@ -118,11 +161,22 @@ class BertDataset(Dataset):
 
     def __len__(self):
         # 返回数据集大小
-        return len(self.all_document)
+        return len(self.data_inputs)
 
     def __getitem__(self, index):
-       return torch.zero(1,2)
+       '''
+       input_ids, pos_ids, segment_ids, mask_vec
+       mask_pos, tag
+       '''
+       input_ids = self.data_inputs[index]['mask_ids']
+       pos_ids = [i for i in range(self.max_len)]
+       segment_ids = self.data_tokens[index]['segment']
+       mask_vec = self.data_inputs[index]['mask_padding']
+       X = torch.Tensor([input_ids, pos_ids, segment_ids, mask_vec])
+       Y1 = torch.Tensor(self.data_inputs[index]['mask_pos'])
+       Y2 = self.data_tokens[index]['target']
+       return X, Y1, Y2
 
 if __name__ == "__main__":
     dataset = BertDataset()
-    dataset.create_instances(1)
+    print(dataset.__getitem__(1))

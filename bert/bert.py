@@ -21,3 +21,12 @@ class bertClassifier(nn.Module):
         x = self.FC(x)
         x = F.log_softmax(x,dim=-1).squeeze(1)
         return x
+
+
+class bert(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, input):
+        x = input
+        return x
