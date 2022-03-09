@@ -81,6 +81,7 @@ class BertDataset(Dataset):
         mask_padding=[1 if i>0 else 0 for i in all_id]
         # create
         ret = {'token_ids':all_id, 'mask_ids':mask_id, 'mask_padding':mask_padding,'mask_pos': mask_pos}
+        #      所有的token           被bert mask掉后的整句token           padding           mask掉的在原句中的位置
         return ret
         
     def create_instances(self, index, max_len=256):
@@ -160,22 +161,28 @@ class BertDataset(Dataset):
         return tokens
 
     def __len__(self):
-        # 返回数据集大小
-        return len(self.data_inputs)
+        # 返回token的字典大小
+        return self.tokenizer.vocab_size()
 
     def __getitem__(self, index):
        '''
-       input_ids, pos_ids, segment_ids, mask_vec
-       mask_pos, tag
+       X: input_ids, 
+            pos_ids,  
+            segment_ids, 
+            mask_vec,
+       X1:all_ids,
+       Y1: mask_pos     mask掉的词的位置
+       Y2: tag
        '''
        input_ids = self.data_inputs[index]['mask_ids']
        pos_ids = [i for i in range(self.max_len)]
        segment_ids = self.data_tokens[index]['segment']
        mask_vec = self.data_inputs[index]['mask_padding']
+       all_ids = torch.Tensor(self.data_inputs[index]['token_ids'])
        X = torch.Tensor([input_ids, pos_ids, segment_ids, mask_vec])
        Y1 = torch.Tensor(self.data_inputs[index]['mask_pos'])
        Y2 = self.data_tokens[index]['target']
-       return X, Y1, Y2
+       return X, all_ids, Y1, Y2
 
 if __name__ == "__main__":
     dataset = BertDataset()
