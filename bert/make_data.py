@@ -43,7 +43,7 @@ class BertDataset(Dataset):
             self.data_inputs.append(self.create_input(tk,max_len=max_len))
         self.max_len=max_len
         
-    def create_input(self, token, mask_prob=0.15, max_len=256):
+    def create_input(self, token, mask_len=30, mask_prob=0.15, max_len=256):
         '''
         对于传入的token, 要生成输入
         输入包括原id, 掩码之后的id, padding掩码, 被掩码掩去的pos
@@ -57,9 +57,12 @@ class BertDataset(Dataset):
             if (id>=100 and id<=103) or id == 0:
                 continue
             mask_pos.append(pos)
-        mask_num = max(1,int(len(mask_pos)*mask_prob))
+        mask_num = min(mask_len, max(1,int(len(mask_pos)*mask_prob)))
         random.shuffle(mask_pos)
         mask_pos = mask_pos[:mask_num]
+        while mask_num< mask_len : 
+            mask_pos.append(-1)
+            mask_num+=1
         
         mask_id = []                    # 生成掩码的id
         for pos,id in enumerate(all_id):
@@ -78,7 +81,7 @@ class BertDataset(Dataset):
                         mask_id.append(tkid)
                 else:
                     mask_id.append(id)
-        mask_padding=[1 if i>0 else 0 for i in all_id]
+        mask_padding=[0 if i>0 else 1 for i in all_id] # 参考TransformerEncoder的接口
         # create
         ret = {'token_ids':all_id, 'mask_ids':mask_id, 'mask_padding':mask_padding,'mask_pos': mask_pos}
         #      所有的token           被bert mask掉后的整句token           padding           mask掉的在原句中的位置
@@ -161,8 +164,7 @@ class BertDataset(Dataset):
         return tokens
 
     def __len__(self):
-        # 返回token的字典大小
-        return self.tokenizer.vocab_size()
+        return len(self.data_inputs)
 
     def __getitem__(self, index):
        '''
@@ -179,11 +181,13 @@ class BertDataset(Dataset):
        segment_ids = self.data_tokens[index]['segment']
        mask_vec = self.data_inputs[index]['mask_padding']
        all_ids = torch.Tensor(self.data_inputs[index]['token_ids'])
-       X = torch.Tensor([input_ids, pos_ids, segment_ids, mask_vec])
-       Y1 = torch.Tensor(self.data_inputs[index]['mask_pos'])
+       X = torch.Tensor([input_ids, pos_ids, segment_ids, mask_vec]).to(int)
+       Y1 = torch.Tensor(self.data_inputs[index]['mask_pos']).to(int)
        Y2 = self.data_tokens[index]['target']
        return X, all_ids, Y1, Y2
 
 if __name__ == "__main__":
     dataset = BertDataset()
-    print(dataset.__getitem__(1))
+    test = dataset.__getitem__(1)
+    print(test[0][-1].shape)
+    

@@ -1,5 +1,5 @@
 from transformers import BertModel,BertConfig
-from torch import Tensor, nn, tensor
+from torch import Tensor, nn
 import torch.nn.functional as F
 
 class bertClassifier(nn.Module):
@@ -27,16 +27,19 @@ class bert(nn.Module):
         self.emb_token = nn.Embedding(dict_size, H_size)
         self.emb_pos = nn.Embedding(seq_length, H_size)
         self.emb_segment = nn.Embedding(2, H_size)
-        layer =  nn.TransformerEncoderLayer(H_size,nhead=A_size,batch_first=True)
-        self.transformerEcoder = nn.TransformerEncoder(layer,L_size) 
+        layer =  nn.TransformerEncoderLayer(H_size,nhead=A_size,dim_feedforward=H_size*4)
+        self.transformerEcoder = nn.TransformerEncoder(layer,L_size)
+        self.next_sent = nn.Linear(H_size,2)
 
-    def forward(self, token_input, pos_input, seg_input, mask):
+    def forward(self, token_input:Tensor, pos_input:Tensor, seg_input:Tensor, mask:Tensor):
         token_x = self.emb_token(token_input)
         pos_x = self.emb_pos(pos_input)
         seg_x = self.emb_segment(seg_input)
-        x = token_x + pos_x + seg_x
-        x = self.transformerEcoder(x,attention_mask=mask)
-        return x
+        x:Tensor = token_x + pos_x + seg_x
+        x = x.transpose(0, 1)
+        x = self.transformerEcoder(x, src_key_padding_mask=mask.to(bool))
+        y = self.next_sent(x[0])
+        return x, y
 
 if __name__ == "__main__":
 
