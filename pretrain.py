@@ -8,14 +8,14 @@ from tqdm import tqdm
 import torch.nn.functional as F
 import time
 from datetime import datetime
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
 # from torchstat import stat
 from torchsummary import summary
 import os
 
 os.environ['CUDA_VISIBLE_DEVICES']='1'  # here chose the GPU
 torch.cuda.empty_cache()
-device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f'Using {device} device')
 device = torch.device(device)
 
@@ -36,6 +36,8 @@ def cal_mask_loss(pre_output:torch.Tensor, token: torch.Tensor, mask_token:torch
 
     # the predict words
     pre_mask = torch.gather(pre_output, 1, mask_token.unsqueeze(-1).tile((1,1,H_size)))  # [batch_size, len(mask_token), H_size]
+    print(pre_mask.shape)
+    print(weights.shape)
     pred_probs = torch.inner(pre_mask, weights) # [batch_size, len(mask_token), voca_size]
     pred_probs = F.log_softmax(pred_probs, -1)
    
