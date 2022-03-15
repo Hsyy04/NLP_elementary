@@ -1,4 +1,3 @@
-from venv import create
 from transformers import BertTokenizer
 from torch.utils.data import Dataset
 import pandas as pd
@@ -43,11 +42,12 @@ class BertDataset(Dataset):
             self.data_inputs.append(self.create_input(tk,max_len=max_len))
         self.max_len=max_len
         
-    def create_input(self, token, mask_len=30, mask_prob=0.15, max_len=256):
+    def create_input(self, token, mask_prob=0.15, max_len=256):
         '''
         对于传入的token, 要生成输入
         输入包括原id, 掩码之后的id, padding掩码, 被掩码掩去的pos
         '''
+        mask_len= int(mask_prob * max_len)
         for i in range(len(token['tokens']), max_len):        # 添加padding
             token['tokens'].append('[PAD]')
             token['segment'].append(1)
@@ -61,7 +61,7 @@ class BertDataset(Dataset):
         random.shuffle(mask_pos)
         mask_pos = mask_pos[:mask_num]
         while mask_num< mask_len : 
-            mask_pos.append(-1)
+            mask_pos.append(0)    # 为了对齐长度
             mask_num+=1
         
         mask_id = []                    # 生成掩码的id

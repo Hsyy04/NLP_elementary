@@ -1,12 +1,8 @@
 from torch.optim.optimizer import Optimizer
 from torch.optim.lr_scheduler import StepLR
 
-from data import bertEmbedding, embedding, ChSentiDataSet, oneHotEmbedding,indexDictEmbedding
-from MLP.MLP import MLPmodelV1, MLPmodelV2
-from TextCNN.textCNN import textCNNv1
-from RNN.rnn import LSTMv1, GRUv1
-from transformer.transformer import transformerv1,transformerv2
-from bert.bert import bertClassifier, bert
+from data import bertEmbedding, ChSentiDataSet
+from bert.bert import bert, bertClassifierv2
 from torch.utils.data import DataLoader,random_split
 
 import torch
@@ -22,6 +18,18 @@ import os
 
 os.environ['CUDA_VISIBLE_DEVICES']='0'
 torch.cuda.empty_cache()
+TRAIN_PATH = "data/ChnSentiCorp_htl_all/train_1600+1600.csv"
+TEST_PATH = "data/ChnSentiCorp_htl_all/test_800+800.csv"
+BATCH_SIZE = 8
+EPOCH_NUM = 40
+LEARNING_RATE = 0.00003
+PADDING_LEN = 256   # i.e.seq_len
+DROUP_OUT = 0.7
+NAME = f'ft_bert_lr{LEARNING_RATE}_en{EPOCH_NUM}_adam_d{DROUP_OUT}_pl{PADDING_LEN}'
+
+device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+print(f'Using {device} device')
+device = torch.device(device)
 
 class myOptimSimple(Optimizer):
     
@@ -42,10 +50,11 @@ def valid(data, model, phrase):
     currect = 0
     all = 0
     loss = 0.0
+    pos_id = torch.arange(PADDING_LEN).to(device)
     for (X,y) in data:
         all+=1
-        X = X.to(device)
-        y_pred = model(X.unsqueeze(0))
+        X = X.to(device).unsqueeze(0)
+        y_pred = model(X[:,0,:], pos_id, X[:,1,:], X[:,2,:])
         y_pred = y_pred.squeeze(0)
         loss += (-float(y_pred[y]))
         y_pred = torch.argmax(y_pred,dim=-1)
@@ -58,42 +67,21 @@ def valid(data, model, phrase):
 
 if __name__ == "__main__":
     # const valuables
-    TRAIN_PATH = "data/ChnSentiCorp_htl_all/train_1600+1600.csv"
-    TEST_PATH = "data/ChnSentiCorp_htl_all/test_800+800.csv"
-    BATCH_SIZE = 8
-    EPOCH_NUM = 40
-    LEARNING_RATE = 0.00003
-    PADDING_LEN = 256   # i.e.seq_len
-    DROUP_OUT = 0.7
-    NAME = f'ft_bert_lr{LEARNING_RATE}_en{EPOCH_NUM}_adam_d{DROUP_OUT}_pl{PADDING_LEN}'
-
-    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-    print(f'Using {device} device')
-    device = torch.device(device)
     currentTime = datetime.now().strftime('%b%d_%H-%M-%S')
 
     # 加载数据
-    # eb=oneHotEmbedding("data\ChnSentiCorp_htl_all\ChnSentiCorp_htl_all.csv",PADDING_LEN,100)
-    # eb=indexDictEmbedding("data\ChnSentiCorp_htl_all\ChnSentiCorp_htl_all.csv",PADDING_LEN,100)
     eb = bertEmbedding("data/ChnSentiCorp_htl_all/ChnSentiCorp_htl_all.csv",PADDING_LEN)
     dicSize = len(eb)
     print(f"dictionary size:{len(eb)}")
     train_data = ChSentiDataSet(TRAIN_PATH,eb)
     test_data = ChSentiDataSet(TEST_PATH,eb)
-
     # train data
     train_dataloader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
 
     start = time.time()
     # 创建模型
-    # model = MLPmodelV1()
-    # model = MLPmodelV2()
-    # model = textCNNv1((PADDING_LEN, len(eb)))
-    # model = LSTMv1(len(eb), 32, PADDING_LEN, dropout=0.6)
-    # model = GRUv1(len(eb), 32, PADDING_LEN, dropout=0.6)
-    # model = transformerv1(PADDING_LEN, len(eb))
-    # model = transformerv2(dicSize,PADDING_LEN)
-    model = bertClassifier()
+    model = bertClassifierv2(dicSize, PADDING_LEN)
+    model.load_state_dict(torch.load('model/bert/bert_pretrain.pt'), strict=False)
     #FIXME: stat(model,(1,128,727))报错了看不懂
     # summary(model.cuda(),input_size=(1,128,727),batch_size=64)
     # assert(False)
@@ -115,8 +103,8 @@ if __name__ == "__main__":
         for (X, y_std) in tqdm(train_dataloader):
         # for (X, y_std) in train_dataloader:
             X, y_std = X.to(device), y_std.to(device)
-            y_pred = model(X)
-            loss = F.nll_loss(y_pred, y_std)
+            y_pred = model(X[:,0,:], pos_id, X[:,1,:], X[:,2,:]) # if bert!
+            loss = F.nll_loss(y_pred, y_std) 
             totloss+=loss
             optimizer.zero_grad() # 这个是梯度置零 添加set_to_none可以置为None，会占用更小的内存，但是会出事
             loss.backward()

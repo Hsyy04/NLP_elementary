@@ -1,3 +1,4 @@
+from base64 import encode
 from turtle import forward, position
 from typing import ForwardRef, Pattern
 from torch import Tensor, nn
@@ -168,3 +169,9 @@ class transformerv2(nn.Module):
         x = self.FC(x)
         x = F.log_softmax(x,dim=-1)
         return x
+
+if __name__ == "__main__":
+    encoder = posEncoder(10001,512)
+    print(encoder.pe.shape)
+    dic={}
+    print(encoder.pe)

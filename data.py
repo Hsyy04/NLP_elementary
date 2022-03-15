@@ -138,10 +138,15 @@ class bertEmbedding(embedding):
         super().__init__(all_sentence_path, minfr)
         self.length = length
         # 使用的预训练模型：https://github.com/ymcui/Chinese-BERT-wwm
-        self.tokenizer = BertTokenizer.from_pretrained('hfl/chinese-bert-wwm',padding=True, truncation=True, return_tensors="pt")
-    
+        # self.tokenizer = BertTokenizer.from_pretrained('hfl/chinese-bert-wwm',padding=True, truncation=True, return_tensors="pt")
+        self.tokenizer = BertTokenizer('data/bert_min/vocab.txt')
+
+    def __len__(self):
+        return self.tokenizer.vocab_size
+
     def toTensor(self, sentence):
         token_words = self.tokenizer.encode_plus(sentence, max_length=self.length, padding='max_length',truncation=True)
+        token_words['attention_mask'] = (np.array(token_words['attention_mask'])-1)*([-1]) # if my bert
         return torch.tensor([token_words['input_ids'], token_words['token_type_ids'], token_words['attention_mask']])
         # return torch.tensor(token_words['input_ids'])
 
@@ -215,8 +220,8 @@ class corpusInfo:
         print(cnt[round(len(cnt)*0.9)])
 
 if __name__ == "__main__":
-    info = corpusInfo("data/ChnSentiCorp_htl_all/ChnSentiCorp_htl_all.csv")
-    info.histWords()
-    # embedding = bertEmbedding("data\ChnSentiCorP_htl_all\ChnSentiCorp_htl_all.csv", 128)
-    # train_data = ChSentiDataSet("data\ChnSentiCorp_htl_all\\train_1600+1600.csv", embedding)
-    # print(train_data.__getitem__(1))
+    # info = corpusInfo("data/ChnSentiCorp_htl_all/ChnSentiCorp_htl_all.csv")
+    # info.histWords()
+    embedding = bertEmbedding("data/ChnSentiCorp_htl_all/ChnSentiCorp_htl_all.csv", 128)
+    train_data = ChSentiDataSet("data/ChnSentiCorp_htl_all/train_1600+1600.csv", embedding)
+    print(train_data.__getitem__(2))
