@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader,Dataset
 import matplotlib.pyplot as plt
 import jieba
 from transformers import BertTokenizer
+from bert.make_data import cut_sent
 
 class ChSentiDataSet(Dataset):
     def __init__(self, data_path, embedding) -> None:
@@ -179,6 +180,34 @@ class bertEmbeddingv1(embedding):
         position_ids = torch.tensor([i for i in range(self.length)])
         return torch.tensor(input_ids, attention_mask, token_type_ids, position_ids)
 
+class HANembedding(embedding):
+    def __init__(self, all_sentence_path, doc_len, sent_len, minfr=100) -> None:
+        super().__init__(all_sentence_path, minfr)
+        self.doc_len = doc_len
+        self.sent_len = sent_len
+    
+    def toTensor(self, sentence):
+        doc = sentence
+        ret = []
+        for sent in cut_sent(doc):
+            sent_words = jieba.lcut(sent)
+            sent_index = []
+            # 把词语转换维字典对应的序号
+            for word in sent_words:
+                if self.wordsindex.__contains__(word):
+                    sent_index.append(self.wordsindex[word]) # 已存在的
+                else:
+                    sent_index.append(self.wordsindex['@other']) # unk
+            while len(sent_index) < self.length:  # padding
+                sent_index.append(self.wordsindex['@pad'])
+
+            ret.append(sent_index[:self.sent_len])
+        while len(ret) < self.doc_len:
+            ret.append([self.wordsindex['@pad']]*self.sent_len) 
+
+        return torch.tensor(ret)  # [doc_len, sent_len]的二维数组
+        
+
 class corpusInfo:
     def __init__(self, path) -> None:
         self.data = pd.read_csv(path, keep_default_na=False, header=0, names=['label','sentence'])
@@ -219,9 +248,40 @@ class corpusInfo:
         plt.show()
         print(cnt[round(len(cnt)*0.9)])
 
+    def HANstatics(self):
+        doc_all = self.data['sentence']
+        sent_len = []
+        word_len = []
+        sent = []
+        word = []
+        for doc in doc_all:
+            sents = cut_sent(doc)
+            sent.append(sents)
+            sent_len.append(len(sents))
+            words = []
+            for st in sents:
+                token = jieba.lcut(st)
+                words.append(token)
+                word_len.append(len(token))
+            word.append(words)
+        
+        print(f"mean length of the doc:{np.mean(sent_len)}")
+        print(f"mean length of the sentence:{np.mean(word_len)}")
+        print(f"max length of the doc:{np.max(sent_len)}")
+        print(f"max length of the sentence:{np.max(word_len)}")
+        print(f"min length of the doc:{np.min(sent_len)}")
+        print(f"min length of the sentence:{np.min(word_len)}")
+        sent_len.sort()
+        word_len.sort()
+        plt.subplot(2, 1, 1)
+        plt.hist(sent_len,bins=300)
+        plt.subplot(2, 1, 2)
+        plt.hist(word_len,bins=300)
+        plt.show()
+
 if __name__ == "__main__":
-    # info = corpusInfo("data/ChnSentiCorp_htl_all/ChnSentiCorp_htl_all.csv")
-    # info.histWords()
-    embedding = bertEmbedding("data/ChnSentiCorp_htl_all/ChnSentiCorp_htl_all.csv", 128)
-    train_data = ChSentiDataSet("data/ChnSentiCorp_htl_all/train_1600+1600.csv", embedding)
-    print(train_data.__getitem__(2))
+    info = corpusInfo("data/ChnSentiCorp_htl_all/ChnSentiCorp_htl_all.csv")
+    info.HANstatics()
+    # embedding = bertEmbedding("data/ChnSentiCorp_htl_all/ChnSentiCorp_htl_all.csv", 128)
+    # train_data = ChSentiDataSet("data/ChnSentiCorp_htl_all/train_1600+1600.csv", embedding)
+    # print(train_data.__getitem__(2))
