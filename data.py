@@ -185,6 +185,7 @@ class HANembedding(embedding):
         super().__init__(all_sentence_path, minfr)
         self.doc_len = doc_len
         self.sent_len = sent_len
+        self.wordsindex = dict((_,i) for i,_ in enumerate(self.words))
     
     def toTensor(self, sentence):
         doc = sentence
@@ -198,16 +199,16 @@ class HANembedding(embedding):
                     sent_index.append(self.wordsindex[word]) # 已存在的
                 else:
                     sent_index.append(self.wordsindex['@other']) # unk
-            while len(sent_index) < self.length:  # padding
+            while len(sent_index) < self.sent_len:  # padding
                 sent_index.append(self.wordsindex['@pad'])
 
             ret.append(sent_index[:self.sent_len])
         while len(ret) < self.doc_len:
             ret.append([self.wordsindex['@pad']]*self.sent_len) 
+        ret = ret[:self.doc_len]
 
         return torch.tensor(ret)  # [doc_len, sent_len]的二维数组
         
-
 class corpusInfo:
     def __init__(self, path) -> None:
         self.data = pd.read_csv(path, keep_default_na=False, header=0, names=['label','sentence'])
