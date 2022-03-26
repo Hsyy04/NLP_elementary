@@ -34,13 +34,13 @@ class han(nn.Module):
         self.sent_len = sent_len
         self.hidden_size = hidden_size
 
-    def forward(self, input:Tensor):
+    def forward(self, input:Tensor, vis = False):
         # input : [batch_size, doc_len, sent_len]
         x = self.word_emb(input).reshape(-1, self.doc_len* self.sent_len, self.hidden_size) # [batch_size, doc_len, sent_len, hidden_size]
         x, _= self.word_GRU(x)
         x = x.reshape(-1, self.doc_len, self.sent_len, self.hidden_size*2) # x=[batch_size, doc_len, sent_len, hidden_size*2]
         a = self.word_attention(x)
-        a=F.softmax(a, dim=2) # [batch_size, doc_len, sent_len]
+        a = F.softmax(a, dim=2) # [batch_size, doc_len, sent_len]
         x = a * x 
         x = x.sum(dim=2) #  [batch_size, doc_len, hidden_size*2]
         x, _ = self.sent_GRU(x) #  [batch_size, doc_len, hidden_size*2]
@@ -49,6 +49,7 @@ class han(nn.Module):
         x = a * x 
         x = x.sum(dim=1) 
         x = F.log_softmax(self.cls(x),dim=-1)
+        
         return x
 
 
