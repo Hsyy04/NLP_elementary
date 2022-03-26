@@ -39,20 +39,16 @@ class han(nn.Module):
         x = self.word_emb(input).reshape(-1, self.doc_len* self.sent_len, self.hidden_size) # [batch_size, doc_len, sent_len, hidden_size]
         x, _= self.word_GRU(x)
         x = x.reshape(-1, self.doc_len, self.sent_len, self.hidden_size*2) # x=[batch_size, doc_len, sent_len, hidden_size*2]
-        a = self.word_attention(x)
-        a = F.softmax(a, dim=2) # [batch_size, doc_len, sent_len]
-        x = a * x 
+        a1 = self.word_attention(x)
+        a1 = F.softmax(a1, dim=2) # [batch_size, doc_len, sent_len]
+        x = a1 * x 
         x = x.sum(dim=2) #  [batch_size, doc_len, hidden_size*2]
         x, _ = self.sent_GRU(x) #  [batch_size, doc_len, hidden_size*2]
-        a = self.sent_attention(x)
-        a=F.softmax(a, dim=1)
-        x = a * x 
+        a2 = self.sent_attention(x)
+        a2 = F.softmax(a2, dim=1)
+        x = a2 * x 
         x = x.sum(dim=1) 
         x = F.log_softmax(self.cls(x),dim=-1)
-        
+        if vis == True:
+            return x, a1, a2
         return x
-
-
-
-
-
